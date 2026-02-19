@@ -158,7 +158,7 @@ async def basic_auth_middleware(request: Request, call_next):
     return Response(
         content="Unauthorized",
         status_code=401,
-        headers={"WWW-Authenticate": 'Basic realm="ΛNet"'}
+        headers={"WWW-Authenticate": 'Basic realm="LambdaNet"'}
     )
 
 
