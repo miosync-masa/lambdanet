@@ -326,9 +326,6 @@ class SentientScheduler:
                 
             except Exception as e:
                 logger.error(f"Reply error for {persona_key}: {e}")
-            
-        except Exception as e:
-            logger.error(f"Autonomous post error for {persona_key}: {e}")
     
     def _build_autonomous_prompt(
         self,
