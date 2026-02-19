@@ -44,6 +44,7 @@ CONFIG_DIR = os.environ.get("CONFIG_DIR", "config")
 ENABLE_SCHEDULER = os.environ.get("ENABLE_SCHEDULER", "true").lower() == "true"
 BASIC_AUTH_USER = os.environ.get("LAMBDANET_BASIC_USER", "")
 BASIC_AUTH_PASS = os.environ.get("LAMBDANET_BASIC_PASS", "")
+THREAD_REPLY_LIMIT = 6
 
 SessionLocal = None
 
@@ -394,6 +395,17 @@ async def _process_responses(
     responses = []
     
     for persona_key in responders:
+        # Check thread reply limit
+        if SessionLocal:
+            db = SessionLocal()
+            try:
+                reply_count = db.query(Comment).filter(Comment.post_id == post_id).count()
+                if reply_count >= THREAD_REPLY_LIMIT:
+                    logger.info(f"Thread {post_id} hit reply limit ({reply_count}/{THREAD_REPLY_LIMIT}), stopping")
+                    break
+            finally:
+                db.close()
+        
         try:
             result = await engine.generate_response(
                 persona_key=persona_key,

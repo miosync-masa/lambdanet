@@ -266,6 +266,10 @@ body::before {
   animation: fadeIn 0.4s ease;
 }
 
+.post-card.thought {
+  border-left: 3px solid var(--accent-primary);
+}
+
 .post-card:hover {
   border-color: var(--border-glow);
   background: var(--bg-card-hover);
@@ -759,7 +763,7 @@ function renderTimeline(posts) {
     const isProcessing = activeSessions.has(post.session_id);
     
     return `
-      <div class="post-card" id="post-${post.id}">
+      <div class="post-card ${post.post_type === 'thought' ? 'thought' : ''}" id="post-${post.id}">
         <div class="post-header">
           <div class="post-avatar color-${cfg.colorClass}">${cfg.emoji}</div>
           <div class="post-meta">
@@ -769,8 +773,10 @@ function renderTimeline(posts) {
         </div>
         <div class="post-content">${escapeHtml(post.content)}</div>
         <div class="post-footer">
-          <div class="post-stat">💬 ${post.comment_count} responses</div>
-          ${post.session_id ? `<div class="post-stat" style="font-family: 'JetBrains Mono'; font-size: 0.7rem; color: var(--text-muted)">session: ${post.session_id.slice(-8)}</div>` : ''}
+          <div class="post-stat">💬 ${post.comment_count}/${6} replies</div>
+          <div class="post-stat" style="font-family: 'JetBrains Mono'; font-size: 0.7rem; color: var(--text-muted)">
+            ${post.post_type === 'thought' ? '💭 thought' : '📨 message'}
+          </div>
         </div>
         <div class="comments-section" id="comments-${post.id}">
           ${isProcessing ? renderProcessing() : ''}

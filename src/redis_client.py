@@ -124,6 +124,27 @@ class RedisClient:
             return result == "PONG"
         except Exception:
             return False
+    
+    # --- Counters ---
+    
+    async def get_counter(self, key: str) -> int:
+        """Get a counter value. Returns 0 if not set."""
+        try:
+            val = await self._execute("GET", key)
+            return int(val) if val else 0
+        except Exception:
+            return 0
+    
+    async def increment_counter(self, key: str, expire_seconds: int = 86400) -> int:
+        """Increment a counter. Sets expiry if new. Returns new value."""
+        try:
+            val = await self._execute("INCR", key)
+            if val == 1:
+                # First increment - set expiry
+                await self._execute("EXPIRE", key, str(expire_seconds))
+            return int(val) if val else 0
+        except Exception:
+            return 0
 
 
 # Singleton
