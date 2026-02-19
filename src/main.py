@@ -15,7 +15,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException, Depends, Header, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Depends, Header, BackgroundTasks, Request, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -42,6 +42,8 @@ MASTER_TOKEN = os.environ.get("LAMBDANET_MASTER_TOKEN", "master-dev-token")
 PERSONAS_DIR = os.environ.get("PERSONAS_DIR", "personas")
 CONFIG_DIR = os.environ.get("CONFIG_DIR", "config")
 ENABLE_SCHEDULER = os.environ.get("ENABLE_SCHEDULER", "true").lower() == "true"
+BASIC_AUTH_USER = os.environ.get("LAMBDANET_BASIC_USER", "")
+BASIC_AUTH_PASS = os.environ.get("LAMBDANET_BASIC_PASS", "")
 
 SessionLocal = None
 
@@ -118,6 +120,46 @@ import os as _os
 _static_dir = _os.path.join(_os.path.dirname(_os.path.dirname(__file__)), "static")
 if _os.path.isdir(_static_dir):
     app.mount("/static", StaticFiles(directory=_static_dir), name="static")
+
+
+# Basic Auth Middleware
+import base64
+import secrets
+
+@app.middleware("http")
+async def basic_auth_middleware(request: Request, call_next):
+    """Require Basic Auth for all routes except /health and /docs."""
+    # Skip if no auth configured
+    if not BASIC_AUTH_USER or not BASIC_AUTH_PASS:
+        return await call_next(request)
+    
+    # Skip health check (Render needs this)
+    path = request.url.path
+    if path in ("/health", "/docs", "/openapi.json", "/redoc"):
+        return await call_next(request)
+    
+    # Skip API calls with Bearer token (master auth)
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.startswith("Bearer "):
+        return await call_next(request)
+    
+    # Check Basic Auth
+    if auth_header.startswith("Basic "):
+        try:
+            decoded = base64.b64decode(auth_header[6:]).decode("utf-8")
+            username, password = decoded.split(":", 1)
+            if (secrets.compare_digest(username, BASIC_AUTH_USER) and
+                secrets.compare_digest(password, BASIC_AUTH_PASS)):
+                return await call_next(request)
+        except Exception:
+            pass
+    
+    # Unauthorized
+    return Response(
+        content="Unauthorized",
+        status_code=401,
+        headers={"WWW-Authenticate": 'Basic realm="ΛNet"'}
+    )
 
 
 # --- Dependencies ---
