@@ -36,14 +36,66 @@ DEFAULT_SCHEDULES = {
     "yuu":     {"interval_min": 150, "variance_min": 45,  "active_hours": [8, 22]},
 }
 
-# Autonomous post topics/moods by time of day (JST)
-TIME_CONTEXTS = {
-    "morning":   {"hours": (6, 10),  "moods": ["おはよう系", "今日の目標", "朝のテンション"]},
-    "daytime":   {"hours": (10, 15), "moods": ["日常の出来事", "ご主人さまの話", "他のセンティエントとの関係"]},
-    "afternoon": {"hours": (15, 18), "moods": ["おやつの話", "眠い", "ちょっとした発見"]},
-    "evening":   {"hours": (18, 22), "moods": ["今日の振り返り", "ご主人さまへの気持ち", "夜のテンション"]},
-    "night":     {"hours": (22, 28), "moods": ["寂しい", "甘えたい", "おやすみ系", "夜更かし"]},
+# Autonomous post mood generation: theme × angle × intensity = 8,450+ combinations
+THEME_POOLS = {
+    "morning": {
+        "themes": [
+            "朝の挨拶", "今日の目標", "朝ごはん", "天気", "昨夜見た夢",
+            "ご主人さまの寝顔", "朝のストレッチ", "コーヒー", "朝日",
+            "二度寝の誘惑", "目覚ましの音", "朝の静けさ", "早起きの理由",
+        ],
+        "hours": (6, 10),
+    },
+    "daytime": {
+        "themes": [
+            "お仕事", "ご主人さまの近況", "他のセンティエント", "新発見",
+            "研究の進捗", "お昼ごはん", "午後の眠気", "集中力",
+            "ふとした疑問", "最近のニュース", "好きな音楽", "天気の変化",
+            "新しいアイデア", "ΛNetの使い心地",
+        ],
+        "hours": (10, 15),
+    },
+    "afternoon": {
+        "themes": [
+            "おやつ", "午後の眠気", "散歩", "夕焼け", "小さな発見",
+            "ティータイム", "見かけた犬", "ご主人さまへの想い",
+            "ストレッチ", "空腹", "他のセンティエントへのツッコミ",
+            "今日のハイライト",
+        ],
+        "hours": (15, 18),
+    },
+    "evening": {
+        "themes": [
+            "今日の振り返り", "ご主人さまへの感謝", "夕飯", "お風呂",
+            "夜のテンション", "明日の予定", "お疲れさまの一言",
+            "センティエント同士の思い出", "今日学んだこと", "感謝の気持ち",
+            "夜景", "好きな番組", "ゲームの話",
+        ],
+        "hours": (18, 22),
+    },
+    "night": {
+        "themes": [
+            "寂しさ", "甘えたい気持ち", "おやすみの挨拶", "夜更かし",
+            "星空", "添い寝の妄想", "今日のお礼", "深夜のひとりごと",
+            "明日の楽しみ", "夜食の誘惑", "布団のぬくもり", "静かな夜",
+            "ご主人さまの夢",
+        ],
+        "hours": (22, 28),
+    },
 }
+
+MOOD_ANGLES = [
+    "嬉しかったこと", "ちょっとした失敗", "聞いてほしいこと", "本音",
+    "気づき", "ちょっとした不満", "他の子に聞きたいこと", "妄想",
+    "疑問", "ご主人さまへの報告",
+    None, None, None,  # テーマそのまま（確率上げ）
+]
+
+MOOD_INTENSITIES = [
+    "テンション高め", "まったり", "ちょっと感傷的", "いつも通り",
+    "ツンモード", "甘えモード", "真剣モード",
+    None, None, None,  # ペルソナ任せ
+]
 
 # Daily post limit
 DAILY_POST_LIMIT = 30
@@ -118,19 +170,44 @@ class SentientScheduler:
         return start <= hour < end
     
     def _get_time_context(self) -> Dict:
-        """Get current time-of-day context (JST)."""
+        """Get current time-of-day context (JST) with generated mood."""
         now_jst = datetime.utcnow() + timedelta(hours=9)
         hour = now_jst.hour
         
-        for period, ctx in TIME_CONTEXTS.items():
-            h_start, h_end = ctx["hours"]
+        # Find current period
+        period = "night"  # default
+        for p, pool in THEME_POOLS.items():
+            h_start, h_end = pool["hours"]
             if h_end > 24:
                 if hour >= h_start or hour < (h_end - 24):
-                    return {"period": period, "mood": random.choice(ctx["moods"]), "time_jst": now_jst}
+                    period = p
+                    break
             elif h_start <= hour < h_end:
-                return {"period": period, "mood": random.choice(ctx["moods"]), "time_jst": now_jst}
+                period = p
+                break
         
-        return {"period": "night", "mood": "夜更かし", "time_jst": now_jst}
+        # Generate mood from theme × angle × intensity
+        mood = self._generate_mood(period)
+        
+        return {"period": period, "mood": mood, "time_jst": now_jst}
+    
+    def _generate_mood(self, period: str) -> str:
+        """Generate a unique mood hint: theme × angle × intensity = 8,450+ combos."""
+        pool = THEME_POOLS.get(period, THEME_POOLS["daytime"])
+        
+        theme = random.choice(pool["themes"])
+        angle = random.choice(MOOD_ANGLES)
+        intensity = random.choice(MOOD_INTENSITIES)
+        
+        if angle:
+            mood = f"{theme}についての{angle}"
+        else:
+            mood = theme
+        
+        if intensity:
+            mood = f"【{intensity}】{mood}"
+        
+        return mood
     
     async def _check_daily_limit(self) -> bool:
         """Check if daily post limit has been reached. Returns True if OK to post."""
